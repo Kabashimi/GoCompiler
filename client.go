@@ -1,53 +1,84 @@
+// Copyright 2015 The Gorilla WebSocket Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+// +build ignore
+
 package main
 
 import (
-"log"
-"github.com/sacOO7/gowebsocket"
-"os"
-"os/signal"
+	"flag"
+	"log"
+	"net/url"
+	"os"
+	"os/signal"
+	"time"
+
+	"github.com/gorilla/websocket"
 )
 
+var addr = flag.String("addr", "localhost:8080", "http service address")
+
 func main() {
+	flag.Parse()
+	log.SetFlags(0)
+
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
-	socket := gowebsocket.New("ws://localhost/")
+	u := url.URL{Scheme: "ws", Host: *addr, Path: "/echo"}
+	log.Printf("connecting to %s", u.String())
 
-	socket.OnConnectError = func(err error, socket gowebsocket.Socket) {
-		log.Fatal("Received connect error - ", err)
+	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	if err != nil {
+		log.Fatal("dial:", err)
 	}
+	defer c.Close()
 
-	socket.OnConnected = func(socket gowebsocket.Socket) {
-		log.Println("Connected to server");
-	}
+	done := make(chan struct{})
 
-	socket.OnTextMessage = func(message string, socket gowebsocket.Socket) {
-		log.Println("Received message - " + message)
-	}
+	go func() {
+		defer close(done)
+		for {
+			_, message, err := c.ReadMessage()
+			if err != nil {
+				log.Println("read:", err)
+				return
+			}
+			log.Printf("recv: %s", message)
+		}
+	}()
 
-	socket.OnPingReceived = func(data string, socket gowebsocket.Socket) {
-		log.Println("Received ping - " + data)
-	}
-
-	socket.OnPongReceived = func(data string, socket gowebsocket.Socket) {
-		log.Println("Received pong - " + data)
-	}
-
-	socket.OnDisconnected = func(err error, socket gowebsocket.Socket) {
-		log.Println("Disconnected from server ")
-		return
-	}
-
-	socket.Connect()
-
-	socket.SendText("Thoughtworks guys are awesome !!!!")
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
 
 	for {
 		select {
+		case <-done:
+			return
+		case t := <-ticker.C:
+			err := c.WriteMessage(websocket.TextMessage, []byte(t.String()))
+			if err != nil {
+				log.Println("write:", err)
+				return
+			}
 		case <-interrupt:
 			log.Println("interrupt")
-			socket.Close()
+
+			// Cleanly close the connection by sending a close message and then
+			// waiting (with timeout) for the server to close the connection.
+			err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+			if err != nil {
+				log.Println("write close:", err)
+				return
+			}
+			select {
+			case <-done:
+			case <-time.After(time.Second):
+			}
 			return
 		}
 	}
 }
+
+// go run client.go
