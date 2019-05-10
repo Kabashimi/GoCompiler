@@ -8,6 +8,8 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"io/ioutil"
 	"log"
 	"net/url"
 	"os"
@@ -20,6 +22,11 @@ import (
 var addr = flag.String("addr", "localhost:8080", "http service address")
 
 func main() {
+	//read file
+	dat, err := ioutil.ReadFile("data.go")
+	//check(err)
+	fmt.Print(string(dat))
+
 	flag.Parse()
 	log.SetFlags(0)
 
@@ -45,7 +52,7 @@ func main() {
 				log.Println("read:", err)
 				return
 			}
-			log.Printf("recv: %s", message)
+			log.Printf("recv: DUPA %s||", message)
 		}
 	}()
 
@@ -57,7 +64,7 @@ func main() {
 		case <-done:
 			return
 		case t := <-ticker.C:
-			err := c.WriteMessage(websocket.TextMessage, []byte(t.String()))
+			err := c.WriteMessage(websocket.TextMessage, []byte("DUPA123"+t.String()))
 			if err != nil {
 				log.Println("write:", err)
 				return
