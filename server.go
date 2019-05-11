@@ -11,11 +11,12 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/gorilla/websocket"
 )
 
-var addr = flag.String("addr", "localhost:8080", "http service address")
+var addr = flag.String("addr", "192.168.43.17:8080", "http service address")
 
 var upgrader = websocket.Upgrader{} // use default options
 
@@ -33,6 +34,13 @@ func echo(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		log.Printf("recv: %s", message)
+		//write to file
+		f, err := os.Create("data.go")
+		n2, err := f.Write(message)
+		f.Sync()
+		f.Close()
+		log.Printf("wrote %d bytes\n", n2)
+
 		err = c.WriteMessage(mt, message)
 		if err != nil {
 			log.Println("write:", err)
