@@ -1,9 +1,3 @@
-// Copyright 2015 The Gorilla WebSocket Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
-// +build ignore
-
 package main
 
 import (
@@ -19,13 +13,13 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var addr = flag.String("addr", "localhost:8080", "http service address")
+var addr = flag.String("addr", "192.168.43.17:8080", "http service address")
 
 func main() {
 	//read file
-	dat, err := ioutil.ReadFile("data.go")
+	file_to_send, err := ioutil.ReadFile("data.go")
 	//check(err)
-	fmt.Print(string(dat))
+	fmt.Print(string(file_to_send))
 
 	flag.Parse()
 	log.SetFlags(0)
@@ -64,7 +58,7 @@ func main() {
 		case <-done:
 			return
 		case t := <-ticker.C:
-			err := c.WriteMessage(websocket.TextMessage, []byte("DUPA123"+t.String()))
+			err := c.WriteMessage(websocket.TextMessage, []byte("TIME:"+t.String()+"DATA"+string(file_to_send)))
 			if err != nil {
 				log.Println("write:", err)
 				return
