@@ -17,10 +17,9 @@ import (
 )
 
 const (
-	host = "localhost"
-	port = 5432
-	user = "postgres"
-
+	host     = "localhost"
+	port     = 5432
+	user     = "postgres"
 	password = "rootpost"
 	dbname   = "GoCompiler"
 )
@@ -30,6 +29,7 @@ type Code struct {
 	date   string
 	code   string
 	result string
+	name   string
 }
 
 //var addr = flag.String("addr", "localhost:8080", "http service address")
@@ -53,10 +53,10 @@ func echo(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Printf("recv: %s", message)
 
-		fileName = "data"+r.Host
+		fileName = "data" + r.Host
 
 		//write to file
-		f, err := os.Create(fileName+"go")
+		f, err := os.Create(fileName + "go")
 		n2, err := f.Write(message)
 		f.Sync()
 		f.Close()
@@ -65,14 +65,14 @@ func echo(w http.ResponseWriter, r *http.Request) {
 		//execute file:
 		execStatus, execResult = FileExecute(fileName)
 
-		if !fileStatus{
+		if !fileStatus {
 			//send failure message to cleint
 			err = c.WriteMessage(mt, "NOK")
 			if err != nil {
 				log.Println(" write:", err)
 				break
 			}
-		}else{
+		} else {
 			//handle request
 			//send success message to cleint
 			err = c.WriteMessage(mt, "OK")
@@ -87,7 +87,6 @@ func echo(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 		}
-
 
 	}
 }
@@ -105,13 +104,24 @@ func FileExecute(fileName string) (bool, string) {
 	}
 	log.Printf("combined out:\n%s\n", string(out))
 
-	f, err := os.Create(fileName+".txt")
+	f, err := os.Create(fileName + ".txt")
 	n2, err := f.Write(out)
 	f.Sync()
 	f.Close()
 	log.Printf("wrote %d bytes\n", n2)
 
 	return true, out
+}
+
+func insertToDatabase(codee string, resultt string, namee string, db *sql.DB, err error) {
+
+	sqlInsert := `
+	INSERT INTO public."Code" (date,code,result,name)
+	VALUES (current_timestamp, $1 ,  $2, $3)`
+	_, err = db.Exec(sqlInsert, codee, resultt, namee)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func main() {
@@ -131,28 +141,25 @@ func main() {
 		panic(err)
 	}
 
-	sqlInsert := `
-	INSERT INTO public."Code" (date,code,result)
-	VALUES ('jon@calhoun.io', current_timestamp ,  'Calhoun')`
-	_, err = db.Exec(sqlInsert)
-	if err != nil {
-		panic(err)
-	}
+	codee := "cobbbbbde"
+	resultt := "result"
+	namee := "name"
+	insertToDatabase(codee, resultt, namee, db, err)
 
-	sqlSelect := `SELECT * FROM public."Code" WHERE id=14;`
-	var code Code
-	row := db.QueryRow(sqlSelect)
-	errs := row.Scan(&code.id, &code.date, &code.code,
-		&code.result)
-	switch errs {
-	case sql.ErrNoRows:
-		fmt.Println("No rows were returned!")
-		return
-	case nil:
-		fmt.Println(code.id)
-	default:
-		panic(errs)
-	}
+	//sqlSelect := `SELECT * FROM public."Code" WHERE id=14;`
+	//var code Code
+	//row := db.QueryRow(sqlSelect)
+	//errs := row.Scan(&code.id, &code.date, &code.code,
+	//	&code.result,&code.name)
+	//switch errs {
+	//case sql.ErrNoRows:
+	//	fmt.Println("No rows were returned!")
+	//	return
+	//case nil:
+	//	fmt.Println(code.id)
+	//default:
+	//	panic(errs)
+	//}
 
 	fmt.Println("Successfully connected!")
 	//start-up:
