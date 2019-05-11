@@ -65,7 +65,7 @@ func home(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	//start-up:
-	cmd := exec.Command("go run data.go")
+	cmd := exec.Command("cmd", "/C", "dir", "")
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
