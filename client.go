@@ -15,6 +15,7 @@ import (
 var addr = flag.String("addr", "192.168.0.17:8080", "http service address")
 
 func main() {
+
 	file_to_send, err := ioutil.ReadFile("data.go")
 
 	flag.Parse()
@@ -37,6 +38,8 @@ func main() {
 	awaitingResults := false
 	awaitingRaport :=false
 
+	mes := ""
+
 	go func() {
 		defer close(done)
 		for {
@@ -45,7 +48,8 @@ func main() {
 				log.Println("read:", err)
 				return
 			}
-			log.Printf("recv: %s", message)
+			mes = string(message)
+			//log.Printf("recv: %s", message)
 			//awaiting first message
 			if !awaitingResults {
 				//compile success/failure info handle:
@@ -58,10 +62,10 @@ func main() {
 				}
 			}else {
 				if !awaitingRaport {
-					fmt.Println("Received results:\n %s", message)
+					log.Println("Received results:\n", mes)
 					awaitingRaport = true
 				}else{
-					fmt.Println("Received raport:\n %s", message)
+					fmt.Println("Received raport:\n", mes)
 					return
 				}
 			}
@@ -94,3 +98,5 @@ func main() {
 		}
 	}
 }
+
+
