@@ -4,14 +4,12 @@ package main
 
 import (
 	"flag"
+	"github.com/gorilla/websocket"
 	"html/template"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
-
-	"github.com/gorilla/websocket"
 )
 
 //var addr = flag.String("addr", "localhost:8080", "http service address")
@@ -64,22 +62,27 @@ func home(w http.ResponseWriter, r *http.Request) {
 	homeTemplate.Execute(w, "ws://"+r.Host+"/echo")
 }
 
-func main() {
-	//start-up:
+func dupa() {
 	cmd := exec.Command("cmd", "/C", "go run", "data.go")
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Fatalf("cmd.Run() failed with %s\n", err)
+		return
 	}
-	fmt.Printf("combined out:\n%s\n", string(out))
+	log.Printf("combined out:\n%s\n", string(out))
 
 	f, err := os.Create("code_output.txt")
 	n2, err := f.Write(out)
 	f.Sync()
 	f.Close()
 	log.Printf("wrote %d bytes\n", n2)
+}
 
+func main() {
+	//start-up:
+	dupa()
+
+	log.Printf("Still going")
 	//main code
 	flag.Parse()
 	log.SetFlags(0)
