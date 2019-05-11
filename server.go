@@ -3,17 +3,37 @@
 package main
 
 import (
+	"database/sql"
 	"flag"
-	"github.com/gorilla/websocket"
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
+
+	"github.com/gorilla/websocket"
+	_ "github.com/lib/pq"
 )
 
+const (
+	host = "localhost"
+	port = 5432
+	user = "postgres"
+
+	password = "rootpost"
+	dbname   = "GoCompiler"
+)
+
+type Code struct {
+	id     int
+	date   string
+	code   string
+	result string
+}
+
 //var addr = flag.String("addr", "localhost:8080", "http service address")
-var addr = flag.String("addr", "192.168.0.150:8080", "http service address")
+var addr = flag.String("addr", "localhost:8080", "http service address")
 
 var upgrader = websocket.Upgrader{} // use default options
 
@@ -79,6 +99,46 @@ func dupa() {
 }
 
 func main() {
+
+	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
+		"password=%s dbname=%s sslmode=disable",
+		host, port, user, password, dbname)
+
+	db, err := sql.Open("postgres", psqlInfo)
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
+	err = db.Ping()
+	if err != nil {
+		panic(err)
+	}
+
+	sqlInsert := `
+	INSERT INTO public."Code" (date,code,result)
+	VALUES ('jon@calhoun.io', current_timestamp ,  'Calhoun')`
+	_, err = db.Exec(sqlInsert)
+	if err != nil {
+		panic(err)
+	}
+
+	sqlSelect := `SELECT * FROM public."Code" WHERE id=14;`
+	var code Code
+	row := db.QueryRow(sqlSelect)
+	errs := row.Scan(&code.id, &code.date, &code.code,
+		&code.result)
+	switch errs {
+	case sql.ErrNoRows:
+		fmt.Println("No rows were returned!")
+		return
+	case nil:
+		fmt.Println(code.id)
+	default:
+		panic(errs)
+	}
+
+	fmt.Println("Successfully connected!")
 	//start-up:
 	dupa()
 
