@@ -5,6 +5,7 @@ package main
 import (
 	"flag"
 	"html/template"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -65,15 +66,19 @@ func home(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	//start-up:
-	cmd := exec.Command("cmd", "/C", "dir", "")
+	cmd := exec.Command("cmd", "/C", "go run", "data.go")
 
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	cmd_err := cmd.Run()
-	if cmd_err != nil {
-		log.Fatalf("cmd.Run() failed with %s\n", cmd_err)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Fatalf("cmd.Run() failed with %s\n", err)
 	}
+	fmt.Printf("combined out:\n%s\n", string(out))
+
+	f, err := os.Create("code_output.txt")
+	n2, err := f.Write(out)
+	f.Sync()
+	f.Close()
+	log.Printf("wrote %d bytes\n", n2)
 
 	//main code
 	flag.Parse()
