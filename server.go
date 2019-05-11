@@ -38,6 +38,7 @@ var addr = flag.String("addr", "localhost:8080", "http service address")
 var upgrader = websocket.Upgrader{} // use default options
 
 func echo(w http.ResponseWriter, r *http.Request) {
+
 	c, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Print("upgrade:", err)
@@ -52,29 +53,42 @@ func echo(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Printf("recv: %s", message)
 
+		fileName = "data"+r.Host
+
 		//write to file
-		f, err := os.Create("data.go")
+		f, err := os.Create(fileName+"go")
 		n2, err := f.Write(message)
 		f.Sync()
 		f.Close()
 		log.Printf("wrote %d bytes\n", n2)
 
-		//execute commands:
-		//cmd := exec.Command("dir")
-		//
-		//cmd.Stdout = os.Stdout
-		//cmd.Stderr = os.Stderr
-		//
-		//cmd_err := cmd.Run()
-		//if cmd_err != nil {
-		//	log.Fatalf("cmd.Run() failed with %s\n", cmd_err)
-		//}
+		//execute file:
+		execStatus, execResult = FileExecute(fileName)
 
-		err = c.WriteMessage(mt, message)
-		if err != nil {
-			log.Println(" write:", err)
-			break
+		if !fileStatus{
+			//send failure message to cleint
+			err = c.WriteMessage(mt, "NOK")
+			if err != nil {
+				log.Println(" write:", err)
+				break
+			}
+		}else{
+			//handle request
+			//send success message to cleint
+			err = c.WriteMessage(mt, "OK")
+			if err != nil {
+				log.Println(" write:", err)
+				break
+			}
+			//send program output to client
+			err = c.WriteMessage(mt, execResult)
+			if err != nil {
+				log.Println(" write:", err)
+				break
+			}
 		}
+
+
 	}
 }
 
@@ -82,20 +96,22 @@ func home(w http.ResponseWriter, r *http.Request) {
 	homeTemplate.Execute(w, "ws://"+r.Host+"/echo")
 }
 
-func dupa() {
-	cmd := exec.Command("cmd", "/C", "go run", "data.go")
+func FileExecute(fileName string) (bool, string) {
+	cmd := exec.Command("cmd", "/C", "go run", fileName+".go")
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return
+		return false, ""
 	}
 	log.Printf("combined out:\n%s\n", string(out))
 
-	f, err := os.Create("code_output.txt")
+	f, err := os.Create(fileName+".txt")
 	n2, err := f.Write(out)
 	f.Sync()
 	f.Close()
 	log.Printf("wrote %d bytes\n", n2)
+
+	return true, out
 }
 
 func main() {
