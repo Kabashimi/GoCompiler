@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"github.com/gorilla/websocket"
 	"io/ioutil"
 	"log"
@@ -11,7 +12,7 @@ import (
 	"time"
 )
 
-var addr = flag.String("addr", "192.168.0.150:8080", "http service address")
+var addr = flag.String("addr", "192.168.0.17:8080", "http service address")
 
 func main() {
 	file_to_send, err := ioutil.ReadFile("data.go")
@@ -33,6 +34,9 @@ func main() {
 
 	done := make(chan struct{})
 
+	awaitingResults := false
+	awaitingRaport :=false
+
 	go func() {
 		defer close(done)
 		for {
@@ -42,6 +46,26 @@ func main() {
 				return
 			}
 			log.Printf("recv: %s", message)
+			//awaiting first message
+			if !awaitingResults {
+				//compile success/failure info handle:
+				if string(message) == "NOK" {
+					fmt.Println("Program compilation was NOT successful")
+					return
+				}else if string(message)== "OK"{
+					fmt.Println("Program compilation successful!")
+					awaitingResults = true
+				}
+			}else {
+				if !awaitingRaport {
+					fmt.Println("Received results:\n %s", message)
+					awaitingRaport = true
+				}else{
+					fmt.Println("Received raport:\n %s", message)
+					return
+				}
+			}
+
 		}
 	}()
 
