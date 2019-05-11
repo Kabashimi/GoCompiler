@@ -1,7 +1,3 @@
-// Copyright 2015 The Gorilla WebSocket Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
 // +build ignore
 
 package main
@@ -12,11 +8,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 
 	"github.com/gorilla/websocket"
 )
 
-var addr = flag.String("addr", "192.168.43.17:8080", "http service address")
+//var addr = flag.String("addr", "localhost:8080", "http service address")
+var addr = flag.String("addr", "192.168.0.150:8080", "http service address")
 
 var upgrader = websocket.Upgrader{} // use default options
 
@@ -34,6 +32,7 @@ func echo(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		log.Printf("recv: %s", message)
+
 		//write to file
 		f, err := os.Create("data.go")
 		n2, err := f.Write(message)
@@ -41,9 +40,20 @@ func echo(w http.ResponseWriter, r *http.Request) {
 		f.Close()
 		log.Printf("wrote %d bytes\n", n2)
 
+		//execute commands:
+		//cmd := exec.Command("dir")
+		//
+		//cmd.Stdout = os.Stdout
+		//cmd.Stderr = os.Stderr
+		//
+		//cmd_err := cmd.Run()
+		//if cmd_err != nil {
+		//	log.Fatalf("cmd.Run() failed with %s\n", cmd_err)
+		//}
+
 		err = c.WriteMessage(mt, message)
 		if err != nil {
-			log.Println("write:", err)
+			log.Println(" write:", err)
 			break
 		}
 	}
@@ -54,11 +64,25 @@ func home(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	//start-up:
+	cmd := exec.Command("go run data.go")
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	cmd_err := cmd.Run()
+	if cmd_err != nil {
+		log.Fatalf("cmd.Run() failed with %s\n", cmd_err)
+	}
+
+	//main code
 	flag.Parse()
 	log.SetFlags(0)
+	log.Printf("Server Listening")
 	http.HandleFunc("/echo", echo)
 	http.HandleFunc("/", home)
 	log.Fatal(http.ListenAndServe(*addr, nil))
+
 }
 
 var homeTemplate = template.Must(template.New("").Parse(`
