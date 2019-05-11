@@ -2,24 +2,19 @@ package main
 
 import (
 	"flag"
-	"fmt"
+	"github.com/gorilla/websocket"
 	"io/ioutil"
 	"log"
 	"net/url"
 	"os"
 	"os/signal"
 	"time"
-
-	"github.com/gorilla/websocket"
 )
 
-var addr = flag.String("addr", "192.168.43.17:8080", "http service address")
+var addr = flag.String("addr", "192.168.0.150:8080", "http service address")
 
 func main() {
-	//read file
 	file_to_send, err := ioutil.ReadFile("data.go")
-	//check(err)
-	fmt.Print(string(file_to_send))
 
 	flag.Parse()
 	log.SetFlags(0)
@@ -46,28 +41,22 @@ func main() {
 				log.Println("read:", err)
 				return
 			}
-			log.Printf("recv: DUPA %s||", message)
+			log.Printf("recv: %s", message)
 		}
 	}()
 
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
+	msg := c.WriteMessage(websocket.TextMessage, []byte(string(file_to_send)))
+	if msg != nil {
+		log.Println("write:", msg)
+		return
+	}
 
 	for {
 		select {
 		case <-done:
 			return
-		case t := <-ticker.C:
-			err := c.WriteMessage(websocket.TextMessage, []byte("TIME:"+t.String()+"DATA"+string(file_to_send)))
-			if err != nil {
-				log.Println("write:", err)
-				return
-			}
 		case <-interrupt:
 			log.Println("interrupt")
-
-			// Cleanly close the connection by sending a close message and then
-			// waiting (with timeout) for the server to close the connection.
 			err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 			if err != nil {
 				log.Println("write close:", err)
@@ -81,5 +70,3 @@ func main() {
 		}
 	}
 }
-
-// go run client.go
