@@ -11,10 +11,10 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"time"
 
 	"bytes"
-	"container/list"
 	"github.com/gorilla/websocket"
 	_ "github.com/lib/pq"
 	"strings"
@@ -48,6 +48,9 @@ func echo(w http.ResponseWriter, r *http.Request) {
 		log.Print("upgrade:", err)
 		return
 	}
+
+	fmt.Println("REQUEST OCCURED: " + c.RemoteAddr().String())
+
 	defer c.Close()
 	for {
 		mt, message, err := c.ReadMessage()
@@ -57,7 +60,9 @@ func echo(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Printf("recv: %s", message)
 
-		fileName := "data" + r.Host
+		//currentTime := time.Now()
+		//time := currentTime.String()
+		fileName := "data" + c.RemoteAddr().String()
 
 		//write to file
 		f, err := os.Create(fileName + ".go")
@@ -90,8 +95,13 @@ func echo(w http.ResponseWriter, r *http.Request) {
 				log.Println(" write:", err)
 				break
 			}
-
-			insertToDatabase(string(message), string(execResult), string(fileName))
+			raport := insertToDatabase(string(message), string(execResult), string(fileName))
+			//fmt.Println("Raport:\n"+ raport)
+			err = c.WriteMessage(mt, []byte(raport))
+			if err != nil {
+				log.Println(" write:", err)
+				break
+			}
 		}
 
 	}
@@ -119,7 +129,7 @@ func FileExecute(fileName string) (bool, string) {
 	return true, string(out)
 }
 
-func insertToDatabase(codee string, resultt string, namee string) {
+func insertToDatabase(codee string, resultt string, namee string) string {
 
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
 		"password=%s dbname=%s sslmode=disable",
@@ -143,7 +153,7 @@ func insertToDatabase(codee string, resultt string, namee string) {
 
 	sqlInsert := `
 	INSERT INTO public."Code" (date,code,result,name)
-	VALUES ($1, $2 ,  $3, $4)`
+	VALUES ($1, $2 , $3, $4)`
 	_, err = db.Exec(sqlInsert, time, codee, resultt, namee)
 	if err != nil {
 		panic(err)
@@ -152,12 +162,13 @@ func insertToDatabase(codee string, resultt string, namee string) {
 		date:   time,
 		result: resultt,
 		code:   codee}
-	selectFromDatabase(db, err, codeObject)
+
+	return selectFromDatabase(db, err, codeObject)
 
 }
 
-func selectFromDatabase(db *sql.DB, err error, codeObject Code) {
-	codes := list.New()
+func selectFromDatabase(db *sql.DB, err error, codeObject Code) string {
+	var codes []Code
 	sqlSelect := `SELECT * FROM public."Code"`
 	var code Code
 
@@ -171,41 +182,56 @@ func selectFromDatabase(db *sql.DB, err error, codeObject Code) {
 			fmt.Println(errs)
 
 		}
-		codes.PushBack(code)
+		codes = append(codes, Code{id: code.id,
+			date:   code.date,
+			code:   code.code,
+			result: code.result,
+			name:   code.name})
 	}
 
-	compareData(codes, codeObject)
+	return compareData(codes, codeObject)
 }
 
-func compareData(codes *list.List, codeObject Code) {
+func compareData(codes []Code, codeObject Code) string {
 
 	raport := " "
 	raports := " "
-	obj := Code{
-		name:   "",
-		date:   "",
-		result: "",
-		code:   ""}
-	fmt.Printf(codes.Front().code)
-	//percentage := 0
-	for temp := codes.Front(); temp != nil; temp = temp.Next() {
-		//	temp.Type().name
-		//	obj=Code (temp.Value)
-		//	fmt.Println(obj.name)
-		////	raport, percentage = Diff(temp.code, codeObject.code)
-		//	raports += "dddd \n" + raport
+	//obj := Code{
+	//	name:   "",
+	//	date:   "",
+	//	result: "",
+	//	code:   ""}
+	//fmt.Printf(codes.Front().code)
+	percentage := 0
+	//for temp := codes.Front(); temp != nil; temp = temp.Next() {
+	//	temp.Type().name
+	//	obj=Code (temp.Value)
+	//	fmt.Println(obj.name)
+	////	raport, percentage = Diff(temp.code, codeObject.code)
+	//	raports += "dddd \n" + raport
 
+	//}
+	for index, element := range codes {
+		if element.date != codeObject.date {
+			raport, percentage = Diff(string(element.code), string(codeObject.code))
+			raports += "\n Procentowa zgodnosc aktualnego pliku z plikiem z : " + element.date + " wynosi: " + strconv.Itoa(percentage) + "% \n" + "Roznice plikow: \n" + raport
+		}
+		//fmt.Printf("perc" + strconv.Itoa(percentage))
+		fmt.Printf(string(index))
 	}
-	fmt.Printf("Wielka dupa " + raports)
 
+	//fmt.Printf("Wielka dupa " + raports)
+	//fmt.Printf(string(percentage))
+	return raports
 }
 
 func Diff(A, B string) (string, int) {
+
 	aLines := strings.Split(A, "\n")
 	bLines := strings.Split(B, "\n")
 
 	chunks := DiffChunks(aLines, bLines)
-	equalSum := 0
+	equalSum := 1
 	addedSum := 0
 	deletedSum := 0
 
@@ -224,6 +250,7 @@ func Diff(A, B string) (string, int) {
 			fmt.Fprintf(buf, " %s\n", line)
 		}
 	}
+
 	equalPercent := (equalSum * 100) / (equalSum + addedSum + deletedSum)
 	return strings.TrimRight(buf.String(), "\n"), equalPercent
 }
