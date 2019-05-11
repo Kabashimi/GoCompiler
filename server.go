@@ -11,9 +11,13 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"time"
 
+	"bytes"
+	"container/list"
 	"github.com/gorilla/websocket"
 	_ "github.com/lib/pq"
+	"strings"
 )
 
 const (
@@ -33,7 +37,7 @@ type Code struct {
 }
 
 //var addr = flag.String("addr", "localhost:8080", "http service address")
-var addr = flag.String("addr", "localhost:8080", "http service address")
+var addr = flag.String("addr", "192.168.0.17:8080", "http service address")
 
 var upgrader = websocket.Upgrader{} // use default options
 
@@ -53,21 +57,21 @@ func echo(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Printf("recv: %s", message)
 
-		fileName = "data" + r.Host
+		fileName := "data" + r.Host
 
 		//write to file
-		f, err := os.Create(fileName + "go")
+		f, err := os.Create(fileName + ".go")
 		n2, err := f.Write(message)
 		f.Sync()
 		f.Close()
 		log.Printf("wrote %d bytes\n", n2)
 
 		//execute file:
-		execStatus, execResult = FileExecute(fileName)
+		execStatus, execResult := FileExecute(fileName)
 
-		if !fileStatus {
+		if !execStatus {
 			//send failure message to cleint
-			err = c.WriteMessage(mt, "NOK")
+			err = c.WriteMessage(mt, []byte("NOK"))
 			if err != nil {
 				log.Println(" write:", err)
 				break
@@ -75,17 +79,19 @@ func echo(w http.ResponseWriter, r *http.Request) {
 		} else {
 			//handle request
 			//send success message to cleint
-			err = c.WriteMessage(mt, "OK")
+			err = c.WriteMessage(mt, []byte("OK"))
 			if err != nil {
 				log.Println(" write:", err)
 				break
 			}
 			//send program output to client
-			err = c.WriteMessage(mt, execResult)
+			err = c.WriteMessage(mt, []byte(execResult))
 			if err != nil {
 				log.Println(" write:", err)
 				break
 			}
+
+			insertToDatabase(string(message), string(execResult), string(fileName))
 		}
 
 	}
@@ -110,21 +116,10 @@ func FileExecute(fileName string) (bool, string) {
 	f.Close()
 	log.Printf("wrote %d bytes\n", n2)
 
-	return true, out
+	return true, string(out)
 }
 
-func insertToDatabase(codee string, resultt string, namee string, db *sql.DB, err error) {
-
-	sqlInsert := `
-	INSERT INTO public."Code" (date,code,result,name)
-	VALUES (current_timestamp, $1 ,  $2, $3)`
-	_, err = db.Exec(sqlInsert, codee, resultt, namee)
-	if err != nil {
-		panic(err)
-	}
-}
-
-func main() {
+func insertToDatabase(codee string, resultt string, namee string) {
 
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
 		"password=%s dbname=%s sslmode=disable",
@@ -141,10 +136,252 @@ func main() {
 		panic(err)
 	}
 
-	codee := "cobbbbbde"
-	resultt := "result"
-	namee := "name"
-	insertToDatabase(codee, resultt, namee, db, err)
+	currentTime := time.Now()
+	time := currentTime.String()
+
+	fmt.Println("Current Time in String: ", time)
+
+	sqlInsert := `
+	INSERT INTO public."Code" (date,code,result,name)
+	VALUES ($1, $2 ,  $3, $4)`
+	_, err = db.Exec(sqlInsert, time, codee, resultt, namee)
+	if err != nil {
+		panic(err)
+	}
+	codeObject := Code{name: namee,
+		date:   time,
+		result: resultt,
+		code:   codee}
+	selectFromDatabase(db, err, codeObject)
+
+}
+
+func selectFromDatabase(db *sql.DB, err error, codeObject Code) {
+	codes := list.New()
+	sqlSelect := `SELECT * FROM public."Code"`
+	var code Code
+
+	rows, row := db.Query(sqlSelect)
+	for rows.Next() {
+		errs := rows.Scan(&code.id, &code.date, &code.code,
+			&code.result, &code.name)
+		if err != nil {
+			panic(err)
+			fmt.Println(row)
+			fmt.Println(errs)
+
+		}
+		codes.PushBack(code)
+	}
+
+	compareData(codes, codeObject)
+}
+
+func compareData(codes *list.List, codeObject Code) {
+
+	raport := " "
+	raports := " "
+	obj := Code{
+		name:   "",
+		date:   "",
+		result: "",
+		code:   ""}
+	fmt.Printf(codes.Front().code)
+	//percentage := 0
+	for temp := codes.Front(); temp != nil; temp = temp.Next() {
+		//	temp.Type().name
+		//	obj=Code (temp.Value)
+		//	fmt.Println(obj.name)
+		////	raport, percentage = Diff(temp.code, codeObject.code)
+		//	raports += "dddd \n" + raport
+
+	}
+	fmt.Printf("Wielka dupa " + raports)
+
+}
+
+func Diff(A, B string) (string, int) {
+	aLines := strings.Split(A, "\n")
+	bLines := strings.Split(B, "\n")
+
+	chunks := DiffChunks(aLines, bLines)
+	equalSum := 0
+	addedSum := 0
+	deletedSum := 0
+
+	buf := new(bytes.Buffer)
+	for _, c := range chunks {
+		for _, line := range c.Added {
+			addedSum += 1
+			fmt.Fprintf(buf, "+%s\n", line)
+		}
+		for _, line := range c.Deleted {
+			deletedSum += 1
+			fmt.Fprintf(buf, "-%s\n", line)
+		}
+		for _, line := range c.Equal {
+			equalSum += 1
+			fmt.Fprintf(buf, " %s\n", line)
+		}
+	}
+	equalPercent := (equalSum * 100) / (equalSum + addedSum + deletedSum)
+	return strings.TrimRight(buf.String(), "\n"), equalPercent
+}
+
+func DiffChunks(a, b []string) []Chunk {
+	// algorithm: http://www.xmailserver.org/diff2.pdf
+
+	// We'll need these quantities a lot.
+	alen, blen := len(a), len(b) // M, N
+
+	// At most, it will require len(a) deletions and len(b) additions
+	// to transform a into b.
+	maxPath := alen + blen // MAX
+	if maxPath == 0 {
+		// degenerate case: two empty lists are the same
+		return nil
+	}
+
+	// Store the endpoint of the path for diagonals.
+	// We store only the a index, because the b index on any diagonal
+	// (which we know during the loop below) is aidx-diag.
+	// endpoint[maxPath] represents the 0 diagonal.
+	//
+	// Stated differently:
+	// endpoint[d] contains the aidx of a furthest reaching path in diagonal d
+	endpoint := make([]int, 2*maxPath+1) // V
+
+	saved := make([][]int, 0, 8) // Vs
+	save := func() {
+		dup := make([]int, len(endpoint))
+		copy(dup, endpoint)
+		saved = append(saved, dup)
+	}
+
+	var editDistance int // D
+dLoop:
+	for editDistance = 0; editDistance <= maxPath; editDistance++ {
+		// The 0 diag(onal) represents equality of a and b.  Each diagonal to
+		// the left is numbered one lower, to the right is one higher, from
+		// -alen to +blen.  Negative diagonals favor differences from a,
+		// positive diagonals favor differences from b.  The edit distance to a
+		// diagonal d cannot be shorter than d itself.
+		//
+		// The iterations of this loop cover either odds or evens, but not both,
+		// If odd indices are inputs, even indices are outputs and vice versa.
+		for diag := -editDistance; diag <= editDistance; diag += 2 { // k
+			var aidx int // x
+			switch {
+			case diag == -editDistance:
+				// This is a new diagonal; copy from previous iter
+				aidx = endpoint[maxPath-editDistance+1] + 0
+			case diag == editDistance:
+				// This is a new diagonal; copy from previous iter
+				aidx = endpoint[maxPath+editDistance-1] + 1
+			case endpoint[maxPath+diag+1] > endpoint[maxPath+diag-1]:
+				// diagonal d+1 was farther along, so use that
+				aidx = endpoint[maxPath+diag+1] + 0
+			default:
+				// diagonal d-1 was farther (or the same), so use that
+				aidx = endpoint[maxPath+diag-1] + 1
+			}
+			// On diagonal d, we can compute bidx from aidx.
+			bidx := aidx - diag // y
+			// See how far we can go on this diagonal before we find a difference.
+			for aidx < alen && bidx < blen && a[aidx] == b[bidx] {
+				aidx++
+				bidx++
+			}
+			// Store the end of the current edit chain.
+			endpoint[maxPath+diag] = aidx
+			// If we've found the end of both inputs, we're done!
+			if aidx >= alen && bidx >= blen {
+				save() // save the final path
+				break dLoop
+			}
+		}
+		save() // save the current path
+	}
+	if editDistance == 0 {
+		return nil
+	}
+	chunks := make([]Chunk, editDistance+1)
+
+	x, y := alen, blen
+	for d := editDistance; d > 0; d-- {
+		endpoint := saved[d]
+		diag := x - y
+		insert := diag == -d || (diag != d && endpoint[maxPath+diag-1] < endpoint[maxPath+diag+1])
+
+		x1 := endpoint[maxPath+diag]
+		var x0, xM, kk int
+		if insert {
+			kk = diag + 1
+			x0 = endpoint[maxPath+kk]
+			xM = x0
+		} else {
+			kk = diag - 1
+			x0 = endpoint[maxPath+kk]
+			xM = x0 + 1
+		}
+		y0 := x0 - kk
+
+		var c Chunk
+		if insert {
+			c.Added = b[y0:][:1]
+		} else {
+			c.Deleted = a[x0:][:1]
+		}
+		if xM < x1 {
+			c.Equal = a[xM:][:x1-xM]
+		}
+
+		x, y = x0, y0
+		chunks[d] = c
+	}
+	if x > 0 {
+		chunks[0].Equal = a[:x]
+	}
+	if chunks[0].empty() {
+		chunks = chunks[1:]
+	}
+	if len(chunks) == 0 {
+		return nil
+	}
+	return chunks
+}
+
+type Chunk struct {
+	Added   []string
+	Deleted []string
+	Equal   []string
+}
+
+func (c *Chunk) empty() bool {
+	return len(c.Added) == 0 && len(c.Deleted) == 0 && len(c.Equal) == 0
+}
+
+func main() {
+
+	//psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
+	//	"password=%s dbname=%s sslmode=disable",
+	//	host, port, user, password, dbname)
+	//
+	//db, err := sql.Open("postgres", psqlInfo)
+	//if err != nil {
+	//	panic(err)
+	//}
+	//defer db.Close()
+	//
+	//err = db.Ping()
+	//if err != nil {
+	//	panic(err)
+	//}
+
+	//codee := "cobbbbbde"
+	//resultt := "result"
+	//namee := "name"
+	//insertToDatabase(codee, resultt, namee, db, err)
 
 	//sqlSelect := `SELECT * FROM public."Code" WHERE id=14;`
 	//var code Code
@@ -156,6 +393,7 @@ func main() {
 	//	fmt.Println("No rows were returned!")
 	//	return
 	//case nil:
+	//case nil:
 	//	fmt.Println(code.id)
 	//default:
 	//	panic(errs)
@@ -163,7 +401,6 @@ func main() {
 
 	fmt.Println("Successfully connected!")
 	//start-up:
-	dupa()
 
 	log.Printf("Still going")
 	//main code
