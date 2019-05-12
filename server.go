@@ -1,5 +1,3 @@
-// +build ignore
-
 package main
 
 import (
@@ -36,8 +34,9 @@ type Code struct {
 	name   string
 }
 
-//var addr = flag.String("addr", "localhost:8080", "http service address")
-var addr = flag.String("addr", "192.168.0.17:8080", "http service address")
+var addr = flag.String("addr", "localhost:8080", "http service address")
+
+//var addr = flag.String("addr", "192.168.0.17:8080", "http service address")
 
 var upgrader = websocket.Upgrader{} // use default options
 
@@ -370,7 +369,7 @@ type Chunk struct {
 func (c *Chunk) empty() bool {
 	return len(c.Added) == 0 && len(c.Deleted) == 0 && len(c.Equal) == 0
 }
-
+func Dupa() { log.Println("write:") }
 func main() {
 	//start-up:
 
