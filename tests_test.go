@@ -3,16 +3,10 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"strconv"
 	"testing"
 )
 
-//type CodeMock   Code class {
-//	id     int
-//	date   string
-//	code   string
-//	result string
-//	name   string
-//}
 func TestCompareSameCodes(t *testing.T) {
 
 	code := "package main import " + "fmt" + "func main() { fmt.Println(" + "hello world" + ") }"
@@ -58,7 +52,6 @@ func TestCompare(t *testing.T) {
 		code:   "package main\nimport " + "fmt" + "\nfunc main(){\nfmt.Println(" + "hello" + ")\n+ for j := 7; j <= 9; j++ {fmt.Println(j)\n} }"}
 
 	codes = append(codes, firstCodeObject)
-
 	result := compareData(codes, codeObject)
 
 	expectedResult, err := ioutil.ReadFile("result.txt")
@@ -66,6 +59,27 @@ func TestCompare(t *testing.T) {
 	if result != string(expectedResult) {
 		t.Errorf("Result was incorrect, got: %s, want: %s.", result, expectedResult)
 		fmt.Print(err)
+	}
+
+}
+
+func TestFileIfExecuted(t *testing.T) {
+
+	fileName := "testingData/testFile"
+	isDone, _ := FileExecute(fileName)
+	if isDone != true {
+		t.Errorf("Result was incorrect, got: %s, want: %s", (strconv.FormatBool(isDone)), (strconv.FormatBool(true)))
+	}
+
+}
+
+func TestFileReturnResultExecute(t *testing.T) {
+
+	fileName := "testingData/testFile"
+	expectedResult := "Hello World"
+	_, result := FileExecute(fileName)
+	if result != expectedResult {
+		t.Errorf("Result was incorrect, got: %s, want: %s", result, expectedResult)
 	}
 
 }
