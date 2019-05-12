@@ -1,9 +1,18 @@
 package main
 
 import (
+	"fmt"
+	"io/ioutil"
 	"testing"
 )
 
+//type CodeMock   Code class {
+//	id     int
+//	date   string
+//	code   string
+//	result string
+//	name   string
+//}
 func TestCompareSameCodes(t *testing.T) {
 
 	code := "package main import " + "fmt" + "func main() { fmt.Println(" + "hello world" + ") }"
@@ -15,7 +24,7 @@ func TestCompareSameCodes(t *testing.T) {
 
 }
 
-func TestCompareDiffCodes(t *testing.T) {
+func TestDiffDiffCodes(t *testing.T) {
 	firstCode := "package main \nimport " + "fmt" + "\nfunc main() {\n fmt.Println(" + "hello" + ") \n fmt.Println(" + "hello1" + ")}"
 	secondCode := "package main \nimport " + "fmt" + "\nfunc main() {\n fmt.Println(" + "hello" + ")\n + for j := 7; j <= 9; j++ {fmt.Println(j)\n} }"
 	_, percentage := Diff(firstCode, secondCode)
@@ -25,12 +34,38 @@ func TestCompareDiffCodes(t *testing.T) {
 
 }
 
-func TestCompareByRaportSameCodes(t *testing.T) {
+func TestDiffByRaportSameCodes(t *testing.T) {
 
 	code := "package main import " + "fmt" + "func main() { fmt.Println(" + "hello world" + ") }"
 	total, _ := Diff(code, code)
 	if total != "" {
 		t.Errorf("Result was incorrect, got: %s, want: %s.", total, "")
+	}
+
+}
+
+func TestCompare(t *testing.T) {
+	var codes []Code
+
+	firstCodeObject := Code{name: "name",
+		date:   "time",
+		result: "result",
+		code:   "package main\nimport " + "fmt" + "\nfunc main(){\nfmt.Println(" + "hello" + ")\nfmt.Println(" + "hello1" + ")}"}
+
+	codeObject := Code{name: "name2",
+		date:   "time2",
+		result: "result2",
+		code:   "package main\nimport " + "fmt" + "\nfunc main(){\nfmt.Println(" + "hello" + ")\n+ for j := 7; j <= 9; j++ {fmt.Println(j)\n} }"}
+
+	codes = append(codes, firstCodeObject)
+
+	result := compareData(codes, codeObject)
+
+	expectedResult, err := ioutil.ReadFile("result.txt")
+
+	if result != string(expectedResult) {
+		t.Errorf("Result was incorrect, got: %s, want: %s.", result, expectedResult)
+		fmt.Print(err)
 	}
 
 }

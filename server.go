@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
-	"html/template"
 	"log"
 	"net/http"
 	"os"
@@ -18,6 +17,7 @@ import (
 	"strings"
 )
 
+// set database connection parameters
 const (
 	host     = "localhost"
 	port     = 5432
@@ -26,6 +26,7 @@ const (
 	dbname   = "GoCompiler"
 )
 
+// Code Table database schema
 type Code struct {
 	id     int
 	date   string
@@ -34,24 +35,28 @@ type Code struct {
 	name   string
 }
 
-var addr = flag.String("addr", "localhost:8080", "http service address")
+// set server address
+var addr = flag.String("addr", "192.168.0.17:8080", "http service address")
 
-//var addr = flag.String("addr", "192.168.0.17:8080", "http service address")
-
+// http upgrader initialization
 var upgrader = websocket.Upgrader{} // use default options
 
+// connection function
 func echo(w http.ResponseWriter, r *http.Request) {
 
+	//upgrades server connection to the websocket
 	c, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Print("upgrade:", err)
 		return
 	}
 
+	// print client address
 	fmt.Println("REQUEST OCCURED: " + c.RemoteAddr().String())
 
 	defer c.Close()
 	for {
+		// read the message from client
 		mt, message, err := c.ReadMessage()
 		if err != nil {
 			log.Println("read:", err)
@@ -59,11 +64,10 @@ func echo(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Printf("recv: %s", message)
 
-		//currentTime := time.Now()
-		//time := currentTime.String()
+		// set file name as client address
 		fileName := "data" + c.RemoteAddr().String()
 
-		//write to file
+		//write received code to file
 		f, err := os.Create(fileName + ".go")
 		n2, err := f.Write(message)
 		f.Sync()
@@ -74,15 +78,14 @@ func echo(w http.ResponseWriter, r *http.Request) {
 		execStatus, execResult := FileExecute(fileName)
 
 		if !execStatus {
-			//send failure message to cleint
+			//send failure message to client
 			err = c.WriteMessage(mt, []byte("NOK"))
 			if err != nil {
 				log.Println(" write:", err)
 				break
 			}
 		} else {
-			//handle request
-			//send success message to cleint
+			//send success message to client
 			err = c.WriteMessage(mt, []byte("OK"))
 			if err != nil {
 				log.Println(" write:", err)
@@ -94,69 +97,75 @@ func echo(w http.ResponseWriter, r *http.Request) {
 				log.Println(" write:", err)
 				break
 			}
+			// generate comparison report
 			raport := insertToDatabase(string(message), string(execResult), string(fileName))
-			//fmt.Println("Raport:\n"+ raport)
+			//send report output to client
 			err = c.WriteMessage(mt, []byte(raport))
 			if err != nil {
 				log.Println(" write:", err)
 				break
 			}
 		}
-
 	}
 }
 
-func home(w http.ResponseWriter, r *http.Request) {
-	homeTemplate.Execute(w, "ws://"+r.Host+"/echo")
-}
-
 func FileExecute(fileName string) (bool, string) {
+	//command line program execution
 	cmd := exec.Command("cmd", "/C", "go run", fileName+".go")
 
+	// program output reading
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return false, ""
 	}
 	log.Printf("combined out:\n%s\n", string(out))
 
+	// writing output to file
 	f, err := os.Create(fileName + ".txt")
 	n2, err := f.Write(out)
 	f.Sync()
 	f.Close()
 	log.Printf("wrote %d bytes\n", n2)
 
+	// output return
 	return true, string(out)
 }
 
 func insertToDatabase(codee string, resultt string, namee string) string {
 
+	// database parameters concatenation
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
 		"password=%s dbname=%s sslmode=disable",
 		host, port, user, password, dbname)
 
+	// database open  connection
 	db, err := sql.Open("postgres", psqlInfo)
 	if err != nil {
 		panic(err)
 	}
 	defer db.Close()
 
+	// ping database to check if connection established
 	err = db.Ping()
 	if err != nil {
 		panic(err)
 	}
 
+	// read current time
 	currentTime := time.Now()
 	time := currentTime.String()
 
 	fmt.Println("Successfully connected!")
 
+	// database insert execution
 	sqlInsert := `
-	INSERT INTO public."Code" (date,code,result,name)
-	VALUES ($1, $2 , $3, $4)`
+    INSERT INTO public."Code" (date,code,result,name)
+    VALUES ($1, $2 , $3, $4)`
 	_, err = db.Exec(sqlInsert, time, codee, resultt, namee)
 	if err != nil {
 		panic(err)
 	}
+	// save current code object
 	codeObject := Code{name: namee,
 		date:   time,
 		result: resultt,
@@ -168,10 +177,11 @@ func insertToDatabase(codee string, resultt string, namee string) string {
 
 func selectFromDatabase(db *sql.DB, err error, codeObject Code) string {
 	var codes []Code
-	sqlSelect := `SELECT * FROM public."Code"`
 	var code Code
-
+	//databse select execution
+	sqlSelect := `SELECT * FROM public."Code"`
 	rows, row := db.Query(sqlSelect)
+	// loop throw received records
 	for rows.Next() {
 		errs := rows.Scan(&code.id, &code.date, &code.code,
 			&code.result, &code.name)
@@ -181,6 +191,7 @@ func selectFromDatabase(db *sql.DB, err error, codeObject Code) string {
 			fmt.Println(errs)
 
 		}
+		// append object to objects array
 		codes = append(codes, Code{id: code.id,
 			date:   code.date,
 			code:   code.code,
@@ -192,12 +203,14 @@ func selectFromDatabase(db *sql.DB, err error, codeObject Code) string {
 }
 
 func compareData(codes []Code, codeObject Code) string {
-
 	raport := " "
 	raports := " "
 	percentage := 0
+	// loop throw array of code objects
 	for index, element := range codes {
+		//ignore the last code object
 		if element.date != codeObject.date {
+			//get difference and percentage
 			raport, percentage = Diff(string(element.code), string(codeObject.code))
 			raports += "\n Procentowa zgodnosc aktualnego pliku z plikiem z : " + element.date + " wynosi: " + strconv.Itoa(percentage) + "% \n" + "Roznice plikow: \n" + raport
 		}
@@ -207,6 +220,7 @@ func compareData(codes []Code, codeObject Code) string {
 	return raports
 }
 
+// return difference and percentage similarity
 func Diff(A, B string) (string, int) {
 
 	aLines := strings.Split(A, "\n")
@@ -237,6 +251,7 @@ func Diff(A, B string) (string, int) {
 	return strings.TrimRight(buf.String(), "\n"), equalPercent
 }
 
+// library method for difference calculation
 func DiffChunks(a, b []string) []Chunk {
 	// algorithm: http://www.xmailserver.org/diff2.pdf
 
@@ -369,92 +384,13 @@ type Chunk struct {
 func (c *Chunk) empty() bool {
 	return len(c.Added) == 0 && len(c.Deleted) == 0 && len(c.Equal) == 0
 }
-func Dupa() { log.Println("write:") }
-func main() {
-	//start-up:
 
-	log.Printf("Still going")
-	//main code
+func main() {
 	flag.Parse()
 	log.SetFlags(0)
 	log.Printf("Server Listening")
+	//request handler
 	http.HandleFunc("/echo", echo)
-	http.HandleFunc("/", home)
 	log.Fatal(http.ListenAndServe(*addr, nil))
 
 }
-
-var homeTemplate = template.Must(template.New("").Parse(`
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<script>  
-window.addEventListener("load", function(evt) {
-    var output = document.getElementById("output");
-    var input = document.getElementById("input");
-    var ws;
-    var print = function(message) {
-        var d = document.createElement("div");
-        d.innerHTML = message;
-        output.appendChild(d);
-    };
-    document.getElementById("open").onclick = function(evt) {
-        if (ws) {
-            return false;
-        }
-        ws = new WebSocket("{{.}}");
-        ws.onopen = function(evt) {
-            print("OPEN");
-        }
-        ws.onclose = function(evt) {
-            print("CLOSE");
-            ws = null;
-        }
-        ws.onmessage = function(evt) {
-            print("RESPONSE: " + evt.data);
-        }
-        ws.onerror = function(evt) {
-            print("ERROR: " + evt.data);
-        }
-        return false;
-    };
-    document.getElementById("send").onclick = function(evt) {
-        if (!ws) {
-            return false;
-        }
-        print("SEND: " + input.value);
-        ws.send(input.value);
-        return false;
-    };
-    document.getElementById("close").onclick = function(evt) {
-        if (!ws) {
-            return false;
-        }
-        ws.close();
-        return false;
-    };
-});
-</script>
-</head>
-<body>
-<table>
-<tr><td valign="top" width="50%">
-<p>Click "Open" to create a connection to the server, 
-"Send" to send a message to the server and "Close" to close the connection. 
-You can change the message and send multiple times.
-<p>
-<form>
-<button id="open">Open</button>
-<button id="close">Close</button>
-<p><input id="input" type="text" value="Hello world!">
-<button id="send">Send</button>
-</form>
-</td><td valign="top" width="50%">
-<div id="output"></div>
-</td></tr></table>
-</body>
-</html>
-`))
-
-// go run server.go
