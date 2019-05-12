@@ -149,7 +149,7 @@ func insertToDatabase(codee string, resultt string, namee string) string {
 	currentTime := time.Now()
 	time := currentTime.String()
 
-	fmt.Println("Current Time in String: ", time)
+	fmt.Println("Successfully connected!")
 
 	sqlInsert := `
 	INSERT INTO public."Code" (date,code,result,name)
@@ -196,32 +196,15 @@ func compareData(codes []Code, codeObject Code) string {
 
 	raport := " "
 	raports := " "
-	//obj := Code{
-	//	name:   "",
-	//	date:   "",
-	//	result: "",
-	//	code:   ""}
-	//fmt.Printf(codes.Front().code)
 	percentage := 0
-	//for temp := codes.Front(); temp != nil; temp = temp.Next() {
-	//	temp.Type().name
-	//	obj=Code (temp.Value)
-	//	fmt.Println(obj.name)
-	////	raport, percentage = Diff(temp.code, codeObject.code)
-	//	raports += "dddd \n" + raport
-
-	//}
 	for index, element := range codes {
 		if element.date != codeObject.date {
 			raport, percentage = Diff(string(element.code), string(codeObject.code))
 			raports += "\n Procentowa zgodnosc aktualnego pliku z plikiem z : " + element.date + " wynosi: " + strconv.Itoa(percentage) + "% \n" + "Roznice plikow: \n" + raport
 		}
-		//fmt.Printf("perc" + strconv.Itoa(percentage))
 		fmt.Printf(string(index))
 	}
 
-	//fmt.Printf("Wielka dupa " + raports)
-	//fmt.Printf(string(percentage))
 	return raports
 }
 
@@ -389,44 +372,6 @@ func (c *Chunk) empty() bool {
 }
 
 func main() {
-
-	//psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
-	//	"password=%s dbname=%s sslmode=disable",
-	//	host, port, user, password, dbname)
-	//
-	//db, err := sql.Open("postgres", psqlInfo)
-	//if err != nil {
-	//	panic(err)
-	//}
-	//defer db.Close()
-	//
-	//err = db.Ping()
-	//if err != nil {
-	//	panic(err)
-	//}
-
-	//codee := "cobbbbbde"
-	//resultt := "result"
-	//namee := "name"
-	//insertToDatabase(codee, resultt, namee, db, err)
-
-	//sqlSelect := `SELECT * FROM public."Code" WHERE id=14;`
-	//var code Code
-	//row := db.QueryRow(sqlSelect)
-	//errs := row.Scan(&code.id, &code.date, &code.code,
-	//	&code.result,&code.name)
-	//switch errs {
-	//case sql.ErrNoRows:
-	//	fmt.Println("No rows were returned!")
-	//	return
-	//case nil:
-	//case nil:
-	//	fmt.Println(code.id)
-	//default:
-	//	panic(errs)
-	//}
-
-	fmt.Println("Successfully connected!")
 	//start-up:
 
 	log.Printf("Still going")
